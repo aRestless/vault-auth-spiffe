@@ -1,0 +1,22 @@
+diff --git a/command/agentproxyshared/helpers.go b/command/agentproxyshared/helpers.go
+index f1ef47cfee..c0c93a6d29 100644
+--- a/command/agentproxyshared/helpers.go
++++ b/command/agentproxyshared/helpers.go
+@@ -11,6 +11,7 @@ import (
+ 	"path/filepath"
+ 	"strings"
+ 
++	spiffe "github.com/aRestless/vault-auth-spiffe"
+ 	log "github.com/hashicorp/go-hclog"
+ 	"github.com/hashicorp/vault/command/agentproxyshared/auth"
+ 	"github.com/hashicorp/vault/command/agentproxyshared/auth/alicloud"
+@@ -65,6 +66,9 @@ func GetAutoAuthMethodFromConfig(autoAuthMethodType string, authConfig *auth.Aut
+ 		return cf.NewCFAuthMethod(authConfig)
+ 	case "ldap":
+ 		return ldap.NewLdapAuthMethod(authConfig)
++	case "spiffe":
++		return spiffe.NewSPIFFEAuthMethod(authConfig)
++
+ 	default:
+ 		return nil, errors.New(fmt.Sprintf("unknown auth method %q", autoAuthMethodType))
+ 	}
