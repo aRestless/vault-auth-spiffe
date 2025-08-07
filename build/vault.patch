@@ -1,3 +1,15 @@
+diff --git a/command/agent/config/config.go b/command/agent/config/config.go
+index d4eb95b8e9..8f17bb52d1 100644
+--- a/command/agent/config/config.go
++++ b/command/agent/config/config.go
+@@ -1107,6 +1107,7 @@ var autoAuthMethodKeys = map[string][]string{
+ 	"kerberos":   {""},
+ 	"kubernetes": {""},
+ 	"oci":        {""},
++	"spiffe":     {""},
+ 	"token_file": {""},
+ }
+ 
 diff --git a/command/agentproxyshared/helpers.go b/command/agentproxyshared/helpers.go
 index f1ef47cfee..c0c93a6d29 100644
 --- a/command/agentproxyshared/helpers.go

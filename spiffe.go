@@ -63,10 +63,7 @@ func NewSPIFFEAuthMethod(conf *auth.AuthConfig) (auth.AuthMethod, error) {
 
 	audienceRaw, ok := conf.Config["audience"]
 	if !ok {
-		// For backwards compatibility, we'll allow this to be missing.
-		// The JWT-SVID will have the default audience claim, which is the
-		// trust domain.
-		j.logger.Info("missing 'audience' value, will use default")
+		return nil, errors.New("missing 'audience' value")
 	} else {
 		j.audience, ok = audienceRaw.(string)
 		if !ok {
@@ -76,6 +73,9 @@ func NewSPIFFEAuthMethod(conf *auth.AuthConfig) (auth.AuthMethod, error) {
 
 	if j.role == "" {
 		return nil, errors.New("'role' value is empty")
+	}
+	if j.audience == "" {
+		return nil, errors.New("'audience' value is empty")
 	}
 
 	j.ticker = time.NewTicker(10 * time.Second)

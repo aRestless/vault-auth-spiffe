@@ -1,0 +1,97 @@
+services:
+  spire-data-init:
+    image: alpine:latest
+    command: [ "sh", "-c", "chown -R 1000:1000 /opt/spire/.data" ]
+    volumes:
+      - spire-bundle:/opt/spire/.data
+    user: "0:0"  # Run as root to change ownership
+
+  spire-server:
+    image: ghcr.io/spiffe/spire-server:1.12.4
+    entrypoint: /opt/spire/bin/spire-server
+    command: run -config /etc/spire-server/server.conf
+    depends_on:
+      - spire-data-init
+    volumes:
+      - ./spire-server:/etc/spire-server
+      - spire-bundle:/opt/spire/.data
+      - spire-server-sock:/tmp/spire-server/private
+    healthcheck:
+      test: ["CMD", "/opt/spire/bin/spire-server", "healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  oidc-discovery-provider:
+    image: ghcr.io/spiffe/oidc-discovery-provider:1.12.4
+#    command: -help
+    command: -config /run/spire/oidc/config/oidc-discovery-provider.conf
+    volumes:
+      - spire-bundle:/opt/spire/.data
+      - ./oidc-discovery-provider:/run/spire/oidc/config
+      - spire-server-sock:/tmp/spire-server/private
+    depends_on:
+      spire-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "https://localhost:8443/.well-known/openid-configuration"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  spire-agent:
+    image: ghcr.io/spiffe/spire-agent:1.12.4
+    entrypoint: /opt/spire/bin/spire-agent
+    depends_on:
+      spire-server:
+        condition: service_healthy
+    command: run -config /etc/spire-agent/agent.conf -joinToken "${SPIRE_SERVER_JOIN_TOKEN}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./spire-agent:/etc/spire-agent
+      - spire-bundle:/opt/spire/.data
+      - spire-agent-sock:/tmp/spire-agent/public
+#    user: "0:0" # Run as root to access Docker socket
+    environment:
+      - SPIRE_SERVER_JOIN_TOKEN=${SPIRE_SERVER_JOIN_TOKEN}
+
+  vault:
+    build:
+      context: ..
+      dockerfile: build/Dockerfile
+    depends_on:
+      - spire-agent
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - ./vault:/vault/config
+      - spire-bundle:/opt/spire/data
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=root
+      - VAULT_ADDR=http://vault:8200
+    command: server -dev -log-level=debug -dev-listen-address=0.0.0.0:8200
+
+  vault-agent:
+    build:
+      context: ..
+      dockerfile: build/Dockerfile
+    pid: "service:spire-agent"
+    depends_on:
+      - vault
+      - spire-agent
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - ./vault-agent:/vault/config
+      - spire-bundle:/opt/spire/data
+      - spire-agent-sock:/tmp/spire-agent/public
+      - ./vault-agent-output:/output
+    environment:
+      - VAULT_ADDR=http://vault:8200
+      - SPIFFE_ENDPOINT_SOCKET=unix:///tmp/spire-agent/public/api.sock
+    command: agent -config=/vault/config/config.hcl -log-level=debug
+
+volumes:
+  spire-bundle:
+  spire-server-sock:
+  spire-agent-sock:

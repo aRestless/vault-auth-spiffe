@@ -7,7 +7,7 @@ FROM golang:1.24-alpine AS builder
 ARG VAULT_VERSION=v1.20.1
 
 # Install required packages: git and make
-RUN apk add --no-cache git make
+RUN apk add --no-cache git make bash ca-certificates
 
 # Set working directory
 WORKDIR /src
@@ -18,19 +18,20 @@ RUN git clone https://github.com/hashicorp/vault.git && \
     git checkout ${VAULT_VERSION}
 
 # Copy patch file into the build directory
-COPY build/vault.patch /src/vault/
+COPY ./build/vault.patch /src/vault/
 
 # Set working directory to the cloned repository
 WORKDIR /src/vault
+
+# Install build tools
+RUN make tools
 
 # Apply patch
 RUN git apply vault.patch
 
 # Download dependencies
-RUN go get -d ./...
+RUN go get ./...
 
-# Install build tools
-RUN make tools
 
 # Create Vault binary
 RUN make bin
