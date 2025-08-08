@@ -58,7 +58,7 @@ services:
   vault:
     build:
       context: ..
-      dockerfile: build/Dockerfile
+      dockerfile: ../build/scratch.Dockerfile
     depends_on:
       - spire-agent
     cap_add:
@@ -74,7 +74,7 @@ services:
   vault-agent:
     build:
       context: ..
-      dockerfile: build/Dockerfile
+      dockerfile: ../build/scratch.Dockerfile
     pid: "service:spire-agent"
     depends_on:
       - vault

@@ -1,13 +1,13 @@
 # syntax=docker/dockerfile:1
 
 # Builder image
-FROM golang:1.24-alpine AS builder
+FROM golang:1.24-bookworm AS builder
 
 # Argument for the Vault version with a default value
 ARG VAULT_VERSION=v1.20.1
 
 # Install required packages: git and make
-RUN apk add --no-cache git make bash ca-certificates
+RUN apt install git make bash ca-certificates
 
 # Set working directory
 WORKDIR /src
@@ -17,8 +17,6 @@ RUN git clone https://github.com/hashicorp/vault.git && \
     cd vault && \
     git checkout ${VAULT_VERSION}
 
-# Copy patch file into the build directory
-COPY ./build/vault.patch /src/vault/
 
 # Set working directory to the cloned repository
 WORKDIR /src/vault
@@ -26,12 +24,14 @@ WORKDIR /src/vault
 # Install build tools
 RUN make tools
 
+# Copy patch file into the build directory
+COPY ./build/vault.patch /src/vault/
+
 # Apply patch
 RUN git apply vault.patch
 
 # Download dependencies
-RUN go get ./...
-
+RUN go get github.com/aRestless/vault-auth-spiffe
 
 # Create Vault binary
 RUN make bin

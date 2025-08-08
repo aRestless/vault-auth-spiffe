@@ -36,7 +36,7 @@ go get github.com/aRestless/vault-auth-spiffe
 This project requires patching Vault to include the SPIFFE auth method. Use the provided Dockerfile:
 
 ```bash
-docker build -f build/Dockerfile --build-arg VAULT_VERSION=v1.20.1 -t vault-with-spiffe .
+docker build -f build/scratch.Dockerfile --build-arg VAULT_VERSION=v1.20.1 -t vault-with-spiffe .
 ```
 
 ## Configuration
