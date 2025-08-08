@@ -4,6 +4,8 @@ on:
     # Check once every day
     - cron: '0 0 * * *'
   workflow_dispatch: # Allow manual trigger
+  push:
+    branches: [ "test-gh-action" ]
 
 jobs:
   check-tags:
