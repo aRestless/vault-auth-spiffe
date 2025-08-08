@@ -1,0 +1,45 @@
+name: Check External Repository Tags
+on:
+  schedule:
+    # Check once every day
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allow manual trigger
+  push:
+    branches: [ "test-gh-action" ]
+
+
+jobs:
+  check-tags:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get latest tag from external repo
+        id: check-tags
+        run: |
+          LATEST_TAG=$(curl -s "https://api.github.com/repos/hashicorp/vault/tags" | jq -r '.[0].name // "none"')
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "Found latest tag: $LATEST_TAG"
+
+      - name: Get stored tag
+        id: stored-tag
+        run: |
+          STORED_TAG="${{ vars.LAST_PROCESSED_TAG }}"
+          if [ -z "$STORED_TAG" ]; then
+            STORED_TAG="none"
+          fi
+          echo "stored_tag=$STORED_TAG" >> $GITHUB_OUTPUT
+          echo "Stored tag: $STORED_TAG"
+
+      - name: Process new tag
+        if: steps.check-tags.outputs.latest_tag != steps.stored-tag.outputs.stored_tag && steps.check-tags.outputs.latest_tag != 'none'
+        run: |
+          echo "New tag detected: ${{ steps.check-tags.outputs.latest_tag }}"
+
+      - name: Update stored tag
+        if: steps.check-tags.outputs.latest_tag != steps.stored-tag.outputs.stored_tag && steps.check-tags.outputs.latest_tag != 'none'
+        run: |
+          gh variable set LAST_PROCESSED_TAG --body "${{ steps.check-tags.outputs.latest_tag }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
