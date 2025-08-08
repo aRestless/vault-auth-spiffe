@@ -1,0 +1,117 @@
+name: Build on Vault Tag
+on:
+  schedule:
+    # Check once every day
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allow manual trigger
+  push:
+    branches: [ "test-gh-action" ]
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  check-tags:
+    name: Check for new Vault tags
+    runs-on: ubuntu-latest
+    outputs:
+      vault_tag: ${{ steps.check-tags.outputs.latest_tag }}
+      should_build: ${{ steps.check-tags.outputs.latest_tag != steps.stored-tag.outputs.stored_tag && steps.check-tags.outputs.latest_tag != 'none' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get latest tag from external repo
+        id: check-tags
+        run: |
+          LATEST_TAG=$(curl -s "https://api.github.com/repos/hashicorp/vault/tags" | jq -r '.[0].name // "none"')
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "Found latest tag: $LATEST_TAG"
+
+      - name: Get stored tag
+        id: stored-tag
+        run: |
+          STORED_TAG="${{ vars.LAST_PROCESSED_TAG }}"
+          if [ -z "$STORED_TAG" ]; then
+            STORED_TAG="none"
+          fi
+          echo "stored_tag=$STORED_TAG" >> $GITHUB_OUTPUT
+          echo "Stored tag: $STORED_TAG"
+
+  build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: check-tags
+    if: needs.check-tags.outputs.should_build == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          config-inline: |
+            [worker.oci]
+              max-parallelism = 1
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: arestless/vault-agent-spiffe
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Trim leading 'v' from vault_tag
+        id: trim-tag
+        run: |
+          VAULT_VERSION="${{ needs.check-tags.outputs.vault_tag }}"
+          VAULT_VERSION="${VAULT_VERSION#v}"
+          echo "vault_version=$VAULT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build and push from scratch image
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          context: .
+          file: build/scratch.Dockerfile
+          tags: arestless/vault-agent-spiffe:${{ steps.trim-tag.outputs.vault_version }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VAULT_VERSION=${{ needs.check-tags.outputs.vault_tag }}
+          platforms: linux/amd64,linux/arm64
+
+      - name: Build and push alpine image
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          context: .
+          file: build/alpine.Dockerfile
+          tags: arestless/vault-agent-spiffe:${{ steps.trim-tag.outputs.vault_version }}-alpine
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VAULT_VERSION=${{ needs.check-tags.outputs.vault_tag }}
+          platforms: linux/amd64,linux/arm64
+
+  update-tag:
+    name: Update Last Processed Tag
+    runs-on: ubuntu-latest
+    needs: build
+    if: needs.check-tags.outputs.should_build == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update last processed tag
+        run: |
+          gh variable set LAST_PROCESSED_TAG --body "${{ needs.check-tags.outputs.vault_tag }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
