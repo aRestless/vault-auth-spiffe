@@ -96,19 +96,7 @@ jobs:
           push: true
           context: .
           file: build/scratch.Dockerfile
-          tags: arestless/vault-agent-spiffe:${{ steps.trim-tag.outputs.vault_version }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            VAULT_VERSION=${{ needs.check-tags.outputs.vault_tag }}
-          platforms: linux/arm64
-
-      - name: Build and push alpine image (arm64)
-        uses: docker/build-push-action@v5
-        with:
-          push: true
-          context: .
-          file: build/alpine.Dockerfile
-          tags: arestless/vault-agent-spiffe:${{ steps.trim-tag.outputs.vault_version }}-alpine
+          tags: arestless/vault-agent-spiffe:${{ steps.trim-tag.outputs.vault_version }}-arm64
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VAULT_VERSION=${{ needs.check-tags.outputs.vault_tag }}
@@ -120,11 +108,29 @@ jobs:
           push: true
           context: .
           file: build/scratch.Dockerfile
-          tags: arestless/vault-agent-spiffe:${{ steps.trim-tag.outputs.vault_version }}
+          tags: arestless/vault-agent-spiffe:${{ steps.trim-tag.outputs.vault_version }}-amd64
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VAULT_VERSION=${{ needs.check-tags.outputs.vault_tag }}
           platforms: linux/amd64
+
+      - name: Create multi-platform manifest
+        run: |
+          docker buildx imagetools create -t arestless/vault-agent-spiffe:${{ steps.trim-tag.outputs.vault_version }} \
+            arestless/vault-agent-spiffe:${{ steps.trim-tag.outputs.vault_version }}-arm64 \
+            arestless/vault-agent-spiffe:${{ steps.trim-tag.outputs.vault_version }}-amd64
+
+      - name: Build and push alpine image (arm64)
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          context: .
+          file: build/alpine.Dockerfile
+          tags: arestless/vault-agent-spiffe:${{ steps.trim-tag.outputs.vault_version }}-alpine-arm64
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VAULT_VERSION=${{ needs.check-tags.outputs.vault_tag }}
+          platforms: linux/arm64
 
       - name: Build and push alpine image (amd64)
         uses: docker/build-push-action@v5
@@ -132,11 +138,17 @@ jobs:
           push: true
           context: .
           file: build/alpine.Dockerfile
-          tags: arestless/vault-agent-spiffe:${{ steps.trim-tag.outputs.vault_version }}-alpine
+          tags: arestless/vault-agent-spiffe:${{ steps.trim-tag.outputs.vault_version }}-alpine-amd64
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VAULT_VERSION=${{ needs.check-tags.outputs.vault_tag }}
           platforms: linux/amd64
+
+      - name: Create multi-platform alpine manifest
+        run: |
+          docker buildx imagetools create -t arestless/vault-agent-spiffe:${{ steps.trim-tag.outputs.vault_version }}-alpine \
+            arestless/vault-agent-spiffe:${{ steps.trim-tag.outputs.vault_version }}-alpine-arm64 \
+            arestless/vault-agent-spiffe:${{ steps.trim-tag.outputs.vault_version }}-alpine-amd64
 
   update-tag:
     name: Update Last Processed Tag
