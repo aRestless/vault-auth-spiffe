@@ -42,14 +42,16 @@ RUN mkdir -p /vault/plugins
 # Final image
 FROM alpine:latest
 
+RUN addgroup vault && \
+    adduser -S -G vault vault
+
 # Copy Vault binary from the builder image
 COPY --from=builder /src/vault/bin/vault /usr/local/bin/vault
 
 # Copy plugin directory
 COPY --from=builder /vault/plugins /vault/plugins
 
-# Expose ports
-EXPOSE 8200
-
 # Set entrypoint
 ENTRYPOINT ["vault"]
+
+USER vault
